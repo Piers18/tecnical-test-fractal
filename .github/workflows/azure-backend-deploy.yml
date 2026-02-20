@@ -1,0 +1,54 @@
+name: Deploy Backend to Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: "ordermanagerback"
+  NODE_VERSION: "20.x"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: backend
+        run: npm run build
+
+      - name: Prepare deployment package
+        working-directory: backend
+        run: |
+          # Copy necessary files to dist for deployment
+          cp package.json dist/
+          cp package-lock.json dist/
+
+      - name: Install production dependencies only
+        working-directory: backend/dist
+        run: npm ci --omit=dev
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          package: backend/dist
